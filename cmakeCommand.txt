@@ -1,0 +1,14 @@
+Deux répertoires ond été créées:
+build-debug pour le debug
+build-release pour la version sans symboles et debug.
+
+Pour générer debug,
+taper les 2 commandes:
+    cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug
+    cmake --build build-debug
+
+Pour générer release,
+taper les 2 commandes:
+    cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+    cmake --build build-release
+

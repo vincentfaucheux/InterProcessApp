@@ -1,0 +1,24 @@
+# Fichiers de build CMake
+/build/
+/build-debug/
+/build-release/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Fichiers temporaires Qt
+*.user
+*.pro.user
+*.qrc.cpp
+*.moc.cpp
+*.obj
+*.o
+*.exe
+*.log
+
+# Microsoft Visual Studio
+*.gpg
+
+# VS Code
+#.vscode/
