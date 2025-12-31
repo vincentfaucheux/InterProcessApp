@@ -6,7 +6,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <dlfcn.h>
-#include "../PipeComSo/PipeComSo_interface.h"
+#include "../PipeComSo/PipeComSo.h"
 #include <string>
 #include "main_config.h"
 
@@ -24,7 +24,8 @@ private:
     QComboBox* comboModules = nullptr;
     QComboBox* comboStates= nullptr;
     void* handle = nullptr;
-    PipeComInterface* plugin = nullptr;
+    tPipeComWrite* WritePlugin = nullptr;
+    tPipeComRead* ReadPlugin = nullptr;
     tMainConfig* mainConfig_Ptr = nullptr;
 
     //void commandZigbeeObsolete(const QString& path);

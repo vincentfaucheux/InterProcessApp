@@ -1,6 +1,6 @@
 #include "PipeComSo.h"
 
-t_PipeCom ::t_PipeCom(std::string MqttPath, bool* bAllOk_Ptr) {
+tPipeComWrite ::tPipeComWrite(std::string MqttPath, bool* bAllOk_Ptr) {
     // Init config module
     config_Ptr = new tPipeComSoConfig();
     // if( config_Ptr != nullptr) {
@@ -32,7 +32,47 @@ t_PipeCom ::t_PipeCom(std::string MqttPath, bool* bAllOk_Ptr) {
     // }
 }
 
-t_PipeCom ::~t_PipeCom() {
+tPipeComWrite ::~tPipeComWrite() {
+    //delete config instance
+    if( config_Ptr != nullptr) {
+        delete config_Ptr;
+        config_Ptr = nullptr;
+    }
+}
+
+tPipeComRead ::tPipeComRead(std::string MqttPath, bool* bAllOk_Ptr) {
+    // Init config module
+    config_Ptr = new tPipeComSoConfig();
+    // if( config_Ptr != nullptr) {
+    //     // Load MQTT configuration
+    //      *bAllOk_Ptr = config_Ptr->LoadConfig(MqttPath);
+
+    // //Check if item in the vModuleListe
+    // if(config_Ptr->GetDevicesNumber() == 0) {
+    //     std::cerr << "No module found in configuration" << std::endl;
+    //     *bAllOk_Ptr = false;
+    // } else {
+    //     // Initialize Mosquitto
+    //     mosquitto_lib_init();
+    //     mosq = mosquitto_new(nullptr, true, nullptr);
+    //     // if mosq is nullptr, handle the error
+    //     if(!mosq) {
+    //         std::cerr << "Failed to create Mosquitto instance" << std::endl;
+    //         *bAllOk_Ptr = false;
+    //     } else {
+    //         if(mosquitto_connect(mosq, "localhost", 1883, 60) != MOSQ_ERR_SUCCESS) {
+    //             std::cerr << "Failed to connect to Mosquitto broker" << std::endl;
+    //             *bAllOk_Ptr = false;
+    //         }
+    //     }
+    // }
+    // } else {
+    //     std::cerr << "not able to open the config class" << std::endl;
+    //     *bAllOk_Ptr = false;
+    // }
+}
+
+tPipeComRead ::~tPipeComRead() {
     //delete config instance
     if( config_Ptr != nullptr) {
         delete config_Ptr;

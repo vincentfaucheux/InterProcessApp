@@ -1,9 +1,9 @@
 find_package(yaml-cpp REQUIRED)
 
 # Les headers des plugins sont accessibles à tous
-add_library(PipeCom_interface INTERFACE)
+add_library(PipeCom INTERFACE)
 
-target_include_directories(PipeCom_interface
+target_include_directories(PipeCom
     INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -12,7 +12,6 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(PipeComSo SHARED
     PipeComSo_interface.cpp
-    PipeComSo_interface.h
     PipeComSo.cpp
     PipeComSo.h
     PipeComSo_config.cpp
