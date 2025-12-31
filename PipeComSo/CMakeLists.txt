@@ -11,9 +11,12 @@ target_include_directories(PipeCom
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(PipeComSo SHARED
-    PipeComSo_interface.cpp
     PipeComSo.cpp
+    PipeComReadSo.cpp
+    PipeComWriteSo.cpp
     PipeComSo.h
+    PipeComReadSo.h
+    PipeComWriteSo.h
     PipeComSo_config.cpp
     PipeComSo_config.h
 )
