@@ -4,6 +4,8 @@
 #include <QComboBox>
 #include <QGroupBox>
 #include <QPushButton>
+#include <QLineEdit>
+#include <QLabel>
 #include <QVBoxLayout>
 #include <dlfcn.h>
 #include "../PipeComSo/PipeComSo.h"
@@ -21,15 +23,20 @@ private slots:
     //void onPluginChanged(int index);
 
 private:
-    QComboBox* comboModules = nullptr;
-    QComboBox* comboStates= nullptr;
+    QComboBox* comboDirections = nullptr;
+    QLineEdit *tbMess2Send= nullptr;
+    QLabel *labelMess2Receiv = nullptr;
     void* handle = nullptr;
     tPipeComWrite* WritePlugin = nullptr;
     tPipeComRead* ReadPlugin = nullptr;
     tMainConfig* mainConfig_Ptr = nullptr;
 
     //void commandZigbeeObsolete(const QString& path);
-    void commandZigbee(const QString& ModuleSelected, const QString& StateSelected);
-    void closeZigbeeSo();
-    bool openZigbeeSo( std::string ZigbeeLib, std::string Zigbee2MqttPath  );
+    void commandSend(const QString& DirectionSelected, const QString& MessageSelected);
+    void closeInterProcessSo();
+    bool openInterProcessSo( 
+        std::string InterProcessLib, 
+        std::string App2ServPipeName, 
+        std::string Serv2AppPipeName 
+    );
 };

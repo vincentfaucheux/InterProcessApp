@@ -1,94 +1,60 @@
+
 #include "PipeComReadSo.h"
 
-tPipeComRead ::tPipeComRead(std::string MqttPath, bool* bAllOk_Ptr) {
-    // Init config module
-    config_Ptr = new tPipeComSoConfig();
-    // if( config_Ptr != nullptr) {
-    //     // Load MQTT configuration
-    //      *bAllOk_Ptr = config_Ptr->LoadConfig(MqttPath);
-
-    // //Check if item in the vModuleListe
-    // if(config_Ptr->GetDevicesNumber() == 0) {
-    //     std::cerr << "No module found in configuration" << std::endl;
-    //     *bAllOk_Ptr = false;
-    // } else {
-    //     // Initialize Mosquitto
-    //     mosquitto_lib_init();
-    //     mosq = mosquitto_new(nullptr, true, nullptr);
-    //     // if mosq is nullptr, handle the error
-    //     if(!mosq) {
-    //         std::cerr << "Failed to create Mosquitto instance" << std::endl;
-    //         *bAllOk_Ptr = false;
-    //     } else {
-    //         if(mosquitto_connect(mosq, "localhost", 1883, 60) != MOSQ_ERR_SUCCESS) {
-    //             std::cerr << "Failed to connect to Mosquitto broker" << std::endl;
-    //             *bAllOk_Ptr = false;
-    //         }
-    //     }
-    // }
-    // } else {
-    //     std::cerr << "not able to open the config class" << std::endl;
-    //     *bAllOk_Ptr = false;
-    // }
-}
-
-tPipeComRead ::~tPipeComRead() {
-    //delete config instance
-    if( config_Ptr != nullptr) {
-        delete config_Ptr;
-        config_Ptr = nullptr;
+tPipeComRead ::tPipeComRead(std::string PipePath, bool* bAllOk_Ptr) {
+    //open the named pipe for reading
+    fd = open(PipePath.c_str(), O_RDONLY | O_NONBLOCK);
+    if( fd == -1) {
+        std::cerr << "Error opening pipe for reading: " << PipePath << std::endl;
+        *bAllOk_Ptr = false;
+    } else {
+        bContinueReading = true;
+        threadRead = std::thread(&tPipeComRead::receiverThread, this);
+        if( threadRead.joinable() == false) {
+            *bAllOk_Ptr = false;
+        } else {
+            // nothing to do
+        }
     }
 }
 
-// int t_Zigbee ::GetDevicesNumber() {
-//     if( config_Ptr != nullptr) {
-//         return( config_Ptr->GetDevicesNumber());
-//     } else {
-//         return(0);
-//     }
-// }
+tPipeComRead ::~tPipeComRead() {
+    bContinueReading = false;
+    if( threadRead.joinable())
+    {
+        threadRead.join();
+    }
+    if( fd != -1) {
+        close(fd);
+    }
+}
 
-// std::string t_Zigbee ::GetDeviceID(int index) {
-//     if( config_Ptr != nullptr) {
-//         return( config_Ptr->GetDeviceID(index));
-//     } else {
-//         return("");
-//     }
-// }
+void tPipeComRead ::receiverThread() {
+    const int bufferSize = 1024;
+    uint8_t buffer[bufferSize];
 
-// void t_Zigbee ::Switch(std::string module, 
-//         std::string state) {
-//     std::string state_l1 = "";
-//     std::string state_l2 = "";
-//     // Simple parsing logic for state
-//     if(state == "CONFORT") {
-//         state_l1 = "OFF";
-//         state_l2 = "OFF";
-//     } else if(state == "ECO") {
-//         state_l1 = "ON";
-//         state_l2 = "ON";
-//     } else if(state == "HORS GEL") {
-//         state_l1 = "ON";
-//         state_l2 = "OFF";
-//     } else {
-//         state_l1 = "OFF";
-//         state_l2 = "ON";
-//     }
+    while( bContinueReading) {
+        ssize_t bytesRead = read(fd, buffer, bufferSize);
+        if( bytesRead > 0) {
+            std::vector<uint8_t> message(buffer, buffer + bytesRead);
+            std::lock_guard<std::mutex> lock(mtx);
+            TmpMess.push(message);
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+}
 
-//     // Request to Mosquitto
-//     std::string topic = "zigbee2mqtt/" + module + "/set";
-//     std::string payload = "{\"state_l1\":\"" + state_l1 + "\"" 
-//         +", " 
-//         +"\"state_l2\":\"" + state_l2  + "\"" 
-//         +"}";
-//     mosquitto_publish(
-//         mosq,
-//         nullptr,
-//         topic.c_str(),
-//         payload.length(),
-//         payload.c_str(),
-//     0,
-//     false
-//     );
-// }
+bool tPipeComRead ::ReadData(std::vector<uint8_t>* OutMess_Ptr) {
+    std::lock_guard<std::mutex> lock(mtx);
+    if( !TmpMess.empty()) {
+        *OutMess_Ptr = TmpMess.front();
+        TmpMess.pop();
+        return true;
+    }
+    return false;
+}
 
+bool tPipeComRead ::IsConnected() {
+    return fd != -1;
+}

@@ -3,19 +3,27 @@
 
 #include <string>
 #include <iostream>
-#include "PipeComSo_config.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include <thread>
+#include <queue>
+#include <mutex>
 
 class tPipeComRead{
 public:
-    tPipeComRead(std::string MqttPath, bool* bAllOk_Ptr);
+    tPipeComRead(std::string PipePath, bool* bAllOk_Ptr);
     ~tPipeComRead();
-    //int GetDevicesNumber() override;
-    //std::string GetDeviceID(int index) override;
-    //void Switch(std::string module, 
-    //        std::string state) override;
+    bool ReadData(std::vector<uint8_t>* OutMess);
+    bool IsConnected();
 
 private:
-    tPipeComSoConfig* config_Ptr = nullptr;
+    int fd = -1;
+    std::queue<std::vector<uint8_t>> TmpMess;
+    std::mutex mtx;
+    std::thread threadRead = std::thread();
+    bool bContinueReading = true;
+    void receiverThread();
+
 };
 
 #endif //PIPECOMREADSO_H

@@ -3,14 +3,17 @@
 
 #include <string>
 #include <iostream>
-#include "PipeComReadSo.h"
-#include "PipeComWriteSo.h"
+#include "./PipeComReadSo.h"
+#include "./PipeComWriteSo.h"
 
 extern "C" {
-    tPipeComWrite * create_pipe_com_write( std::string MqttPath);
+    tPipeComWrite * create_pipe_com_write( std::string PipePath);
     void destroy_pipe_com_write(tPipeComWrite*);
-    tPipeComRead * create_pipe_com_read( std::string MqttPath);
+    bool WriteData(tPipeComWrite* t_Ptr, const u_int8_t* u8Data_Ptr, int iDataSize);
+    tPipeComRead * create_pipe_com_read( std::string PipePath);
     void destroy_pipe_com_read(tPipeComRead*);
+    bool ReadData(tPipeComRead* t_Ptr, std::vector<uint8_t>* OutMess);
+
 }
 
 #endif //PIPECOMSO_H

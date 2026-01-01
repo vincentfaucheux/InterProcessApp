@@ -1,94 +1,50 @@
+
 #include "PipeComWriteSo.h"
 
-tPipeComWrite ::tPipeComWrite(std::string MqttPath, bool* bAllOk_Ptr) {
-    // Init config module
-    config_Ptr = new tPipeComSoConfig();
-    // if( config_Ptr != nullptr) {
-    //     // Load MQTT configuration
-    //      *bAllOk_Ptr = config_Ptr->LoadConfig(MqttPath);
 
-    // //Check if item in the vModuleListe
-    // if(config_Ptr->GetDevicesNumber() == 0) {
-    //     std::cerr << "No module found in configuration" << std::endl;
-    //     *bAllOk_Ptr = false;
-    // } else {
-    //     // Initialize Mosquitto
-    //     mosquitto_lib_init();
-    //     mosq = mosquitto_new(nullptr, true, nullptr);
-    //     // if mosq is nullptr, handle the error
-    //     if(!mosq) {
-    //         std::cerr << "Failed to create Mosquitto instance" << std::endl;
-    //         *bAllOk_Ptr = false;
-    //     } else {
-    //         if(mosquitto_connect(mosq, "localhost", 1883, 60) != MOSQ_ERR_SUCCESS) {
-    //             std::cerr << "Failed to connect to Mosquitto broker" << std::endl;
-    //             *bAllOk_Ptr = false;
-    //         }
-    //     }
-    // }
-    // } else {
-    //     std::cerr << "not able to open the config class" << std::endl;
-    //     *bAllOk_Ptr = false;
-    // }
-}
 
-tPipeComWrite ::~tPipeComWrite() {
-    //delete config instance
-    if( config_Ptr != nullptr) {
-        delete config_Ptr;
-        config_Ptr = nullptr;
+tPipeComWrite ::tPipeComWrite(std::string PipePath, bool* bAllOk_Ptr) {
+    *bAllOk_Ptr = true;
+    fd = open(PipePath.c_str(), O_WRONLY | O_NONBLOCK);
+    if (fd < 0) {
+        perror("open");
+        *bAllOk_Ptr = false;
     }
 }
 
-// int t_Zigbee ::GetDevicesNumber() {
-//     if( config_Ptr != nullptr) {
-//         return( config_Ptr->GetDevicesNumber());
-//     } else {
-//         return(0);
-//     }
-// }
+tPipeComWrite ::~tPipeComWrite() {
+    if (fd >= 0) {
+        close(fd);
+        fd = -1;
+    }
+}
 
-// std::string t_Zigbee ::GetDeviceID(int index) {
-//     if( config_Ptr != nullptr) {
-//         return( config_Ptr->GetDeviceID(index));
-//     } else {
-//         return("");
-//     }
-// }
+bool tPipeComWrite ::WriteData(const u_int8_t* u8Data_Ptr, int iDataSize) {
+    bool bRet = true;
+    if (fd < 0) {
+        std::cerr << "Pipe not connected for writing." << std::endl;
+        bRet = false;
+    } else {
+        ssize_t bytesWritten = write(fd, u8Data_Ptr, iDataSize);
+        if (bytesWritten < 0) {
+            if (errno == EAGAIN) {
+                std::cerr << "Pipe plein ou pas de reader.\n";
+            } else {
+                perror("write");
+            }
+            bRet = false;
+        } else if (static_cast<size_t>(bytesWritten) != iDataSize) {
+            std::cerr << "Partial write occurred." << std::endl;
+            bRet = false;
+        } else {
+            // Successfully written all data
+            std::cout << "All Bytes sent" << std::endl;
+        }
+    }
 
-// void t_Zigbee ::Switch(std::string module, 
-//         std::string state) {
-//     std::string state_l1 = "";
-//     std::string state_l2 = "";
-//     // Simple parsing logic for state
-//     if(state == "CONFORT") {
-//         state_l1 = "OFF";
-//         state_l2 = "OFF";
-//     } else if(state == "ECO") {
-//         state_l1 = "ON";
-//         state_l2 = "ON";
-//     } else if(state == "HORS GEL") {
-//         state_l1 = "ON";
-//         state_l2 = "OFF";
-//     } else {
-//         state_l1 = "OFF";
-//         state_l2 = "ON";
-//     }
+    return bRet;
+}
 
-//     // Request to Mosquitto
-//     std::string topic = "zigbee2mqtt/" + module + "/set";
-//     std::string payload = "{\"state_l1\":\"" + state_l1 + "\"" 
-//         +", " 
-//         +"\"state_l2\":\"" + state_l2  + "\"" 
-//         +"}";
-//     mosquitto_publish(
-//         mosq,
-//         nullptr,
-//         topic.c_str(),
-//         payload.length(),
-//         payload.c_str(),
-//     0,
-//     false
-//     );
-// }
-
+bool tPipeComWrite ::IsConnected() {
+    return (fd >= 0);
+}

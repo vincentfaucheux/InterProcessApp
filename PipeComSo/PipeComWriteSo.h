@@ -3,19 +3,19 @@
 
 #include <string>
 #include <iostream>
-#include "PipeComSo_config.h"
+#include <fcntl.h>
+#include <unistd.h>
+
 
 class tPipeComWrite {
 public:
-    tPipeComWrite(std::string MqttPath, bool* bAllOk_Ptr);
+    tPipeComWrite(std::string PipePath, bool* bAllOk_Ptr);
     ~tPipeComWrite();
-    //int GetDevicesNumber() override;
-    //std::string GetDeviceID(int index) override;
-    //void Switch(std::string module, 
-    //        std::string state) override;
+    bool WriteData(const u_int8_t* u8Data_Ptr, int iDataSize);
+    bool IsConnected();
 
 private:
-    tPipeComSoConfig* config_Ptr = nullptr;
+    int fd = -1;
 };
 
 #endif //PIPECOMWRITESO_H

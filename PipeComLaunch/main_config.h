@@ -8,8 +8,9 @@ class tConfigData{
 public:
     tConfigData();
     ~tConfigData();
-    std::string Zigbee2MqttPath;
-    std::string ZigbeeAppLib;
+    std::string InterProcessAppLib;
+    std::string App2ServPipeName;
+    std::string Serv2AppPipeName;
 };
 
 class tMainConfig{

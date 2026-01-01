@@ -1,8 +1,7 @@
 #include "main_config.h"
 
 tConfigData::tConfigData(){
-    Zigbee2MqttPath = "";
-    ZigbeeAppLib = "";
+    InterProcessAppLib = "";
 }
 
 tConfigData::~tConfigData(){
@@ -27,20 +26,31 @@ bool tMainConfig::LoadConfig(){
         //data pointer is valid, load yaml file
         try {
             YAML::Node YamlConfig = YAML::LoadFile( "configuration.yaml");
-
-            if( YamlConfig["mqtt_config_path"] ) {
-                ConfigData_Ptr->Zigbee2MqttPath = YamlConfig["mqtt_config_path"].as<std::string>();
-                std::cout << "mqtt_config_path:" << ConfigData_Ptr->Zigbee2MqttPath << std::endl;
+            
+            //read interprocess app lib
+            if( YamlConfig["interprocess_app_lib"] ) {
+                ConfigData_Ptr->InterProcessAppLib = YamlConfig["interprocess_app_lib"].as<std::string>();
+                std::cout << "interprocess_app_lib:" << ConfigData_Ptr->InterProcessAppLib << std::endl;
             } else {
-                std::cout << "mqtt_config_path not found in configuration.yaml" << std::endl;
+                std::cout << "interprocess_app_lib not found in configuration.yaml" << std::endl;
                 bRet = false;
             }
 
-            if( YamlConfig["zigbee_app_lib"] ) {
-                ConfigData_Ptr->ZigbeeAppLib = YamlConfig["zigbee_app_lib"].as<std::string>();
-                std::cout << "zigbee_app_lib:" << ConfigData_Ptr->ZigbeeAppLib << std::endl;
+            //read app2serv pipe name
+            if( YamlConfig["app2serv_pipe_name"] ) {
+                ConfigData_Ptr->App2ServPipeName = YamlConfig["app2serv_pipe_name"].as<std::string>();
+                std::cout << "app2serv_pipe_name:" << ConfigData_Ptr->App2ServPipeName << std::endl;
             } else {
-                std::cout << "zigbee_app_lib not found in configuration.yaml" << std::endl;
+                std::cout << "app2serv_pipe_name not found in configuration.yaml" << std::endl;
+                bRet = false;
+            }
+
+            //read serv2app pipe name
+            if( YamlConfig["serv2app_pipe_name"] ) {
+                ConfigData_Ptr->Serv2AppPipeName = YamlConfig["serv2app_pipe_name"].as<std::string>();
+                std::cout << "serv2app_pipe_name:" << ConfigData_Ptr->Serv2AppPipeName << std::endl;
+            } else {
+                std::cout << "serv2app_pipe_name not found in configuration.yaml" << std::endl;
                 bRet = false;
             }
         }

@@ -17,8 +17,6 @@ add_library(PipeComSo SHARED
     PipeComSo.h
     PipeComReadSo.h
     PipeComWriteSo.h
-    PipeComSo_config.cpp
-    PipeComSo_config.h
 )
 
 target_link_libraries(PipeComSo
