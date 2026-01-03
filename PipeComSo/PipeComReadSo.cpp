@@ -32,14 +32,25 @@ tPipeComRead ::~tPipeComRead() {
 void tPipeComRead ::receiverThread() {
     const int bufferSize = 1024;
     uint8_t buffer[bufferSize];
+    bool bDataReceived = false;
 
     while( bContinueReading) {
         ssize_t bytesRead = read(fd, buffer, bufferSize);
         if( bytesRead > 0) {
+            bDataReceived = true;
             std::vector<uint8_t> message(buffer, buffer + bytesRead);
             std::lock_guard<std::mutex> lock(mtx);
             TmpMess.push(message);
         } else {
+            //try to invoke callback if data was received previously
+            if( bDataReceived == true ) {
+                bDataReceived = false;
+                //invoke callback if set
+                if( CbReceivedData != nullptr ) {
+                    CbReceivedData( Ctx_Ptr );
+                }
+            }
+            //no data read, sleep briefly to avoid busy waiting
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
@@ -57,4 +68,10 @@ bool tPipeComRead ::ReadData(std::vector<uint8_t>* OutMess_Ptr) {
 
 bool tPipeComRead ::IsConnected() {
     return fd != -1;
+}
+
+bool tPipeComRead ::SetCbReceivedData(tCbDataReceived Cb_Ptr, void* Ctx_Ptr_in) {
+    CbReceivedData = Cb_Ptr;
+    Ctx_Ptr = Ctx_Ptr_in;
+    return true; //always successful
 }

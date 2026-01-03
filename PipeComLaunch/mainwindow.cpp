@@ -103,26 +103,70 @@ bool MainWindow::openInterProcessSo(
     std::string App2ServPipeName, 
     std::string Serv2AppPipeName 
 ) {
+    //init local variables
     bool bRet = true;
+
+    //open the shared library
     handle = dlopen( InterProcessLib.c_str(), RTLD_LAZY);
     if (!handle) {
         qDebug() << dlerror();
         bRet = false;
     }
 
+    //Load the required functions
     if( bRet == true) {
-        //reset errors
-        dlerror();
         //load the class for reading
-        auto createR = reinterpret_cast<tPipeComRead*(*)(std::string)>(
+        dlerror();
+        createR = reinterpret_cast<tPipeComRead*(*)(std::string)>(
             dlsym(handle, "create_pipe_com_read")
         );
-
         if(!createR) {
             qDebug() << dlerror();
             bRet = false;
         }
-        else {
+
+        //Set the callback for received data
+        dlerror();
+        setCb = reinterpret_cast<bool(*)(tPipeComRead*, tCbDataReceived, void*)>(
+            dlsym(handle, "SetCbReceivedData")
+        );
+        if(!setCb) {
+            qDebug() << dlerror();
+            bRet = false;
+        }
+
+        //load the class for writing
+        dlerror();
+        createW = reinterpret_cast<tPipeComWrite*(*)(std::string)>(
+            dlsym(handle, "create_pipe_com_write")
+        );
+        if(!createW) {
+            qDebug() << dlerror();
+            bRet = false;
+        }
+
+        //load the destroyer for writing
+        dlerror();
+        destroyW = reinterpret_cast<void(*)(tPipeComWrite*)>(
+            dlsym(handle, "destroy_pipe_com_write")
+        );
+        if(!destroyW) {
+            qDebug() << dlerror();
+            bRet = false;
+        }
+
+        //load the destroyer for reading
+        dlerror();
+        destroyR = reinterpret_cast<void(*)(tPipeComRead*)>(
+            dlsym(handle, "destroy_pipe_com_read")
+        );
+        if(!destroyR) {
+            qDebug() << dlerror();
+            bRet = false;
+        }
+
+        //create the read plugin
+        if( bRet == true) {
             ReadPlugin = createR( App2ServPipeName.c_str());
             if( ReadPlugin == nullptr ) {
                 qDebug() << "Not able to create the pipe communication read interface";
@@ -130,24 +174,42 @@ bool MainWindow::openInterProcessSo(
             }
         }
 
-        if( bRet == true) {
-            //reset errors
-            dlerror();
-            //load the class for writing
-            auto createW = reinterpret_cast<tPipeComWrite*(*)(std::string)>(
-                dlsym(handle, "create_pipe_com_write")
-            );
+        //Load the function to write data
+        dlerror();
+        writePipe = reinterpret_cast<bool(*)(tPipeComWrite*, const u_int8_t*, int)>(
+            dlsym(handle, "WriteData")
+        );
+        if(!writePipe) {
+            qDebug() << dlerror();
+            bRet = false;
+        }
 
-            if(!createW) {
-                qDebug() << dlerror();
+        //Load the function to read data
+        dlerror();
+        readPipe = reinterpret_cast<bool(*)(tPipeComRead*, std::vector<uint8_t>*)>(
+            dlsym(handle, "ReadData")
+        );
+        if(!readPipe) {
+            qDebug() << dlerror();
+            bRet = false;
+        }
+
+        //Set the callback for received data
+        if( bRet == true) {
+            tCbDataReceived cb = FromPipeComReadCallback;
+            bool bCbOk = setCb( ReadPlugin, cb, (void*)this);
+            if( bCbOk == false ) {
+                qDebug() << "Not able to set the callback for received data";
                 bRet = false;
             }
-            else {
-                WritePlugin = createW( App2ServPipeName.c_str());
-                if( WritePlugin == nullptr ) {
-                    qDebug() << "Not able to create the pipe communication write interface";
-                    bRet = false;
-                }
+        }
+
+        //create the write plugin
+        if( bRet == true) {
+            WritePlugin = createW( App2ServPipeName.c_str());
+            if( WritePlugin == nullptr ) {
+                qDebug() << "Not able to create the pipe communication write interface";
+                bRet = false;
             }
         }
 
@@ -164,16 +226,10 @@ bool MainWindow::openInterProcessSo(
 void MainWindow::closeInterProcessSo() {
     if (handle) {
         if (ReadPlugin) {
-            auto destroy = reinterpret_cast<void(*)(tPipeComRead*)>(
-                dlsym(handle, "destroy_pipe_com_read")
-            );
-            destroy(ReadPlugin);
+            destroyR(ReadPlugin);
         }
         if (WritePlugin) {
-            auto destroy = reinterpret_cast<void(*)(tPipeComWrite*)>(
-                dlsym(handle, "destroy_pipe_com_write")
-            );
-            destroy(WritePlugin);
+            destroyW(WritePlugin);
         }
         dlclose(handle);
     }
@@ -191,7 +247,6 @@ void MainWindow::commandSend(const QString& DirectionSelected, const QString& Me
         qDebug() << "plugins for pipe read or write are not valid";
     }else {
         bool bContinue = true;
-        std::vector<uint8_t>OutMess;
         //plugins valid, execute command
         qDebug() << "Pipe communication";
         qDebug() << "module: " << DirectionSelected;
@@ -207,46 +262,42 @@ void MainWindow::commandSend(const QString& DirectionSelected, const QString& Me
         }
         iDataSize++; //include the null termination
 
-        auto write = reinterpret_cast<bool(*)(tPipeComWrite*, const u_int8_t*, int)>(
-            dlsym(handle, "WriteData")
-        );
-        if(!write) {
-            qDebug() << dlerror();
-            bContinue = false;
-        }
-
-        auto read = reinterpret_cast<bool(*)(tPipeComRead*, std::vector<uint8_t>*)>(
-            dlsym(handle, "ReadData")
-        );
-        if(!read) {
-            qDebug() << dlerror();
-            bContinue = false;
-        }
-
+        bContinue = writePipe(WritePlugin, (const u_int8_t*)MessageSelected_std.c_str(), iDataSize);
         if( bContinue == true){
-            bContinue = write(WritePlugin, (const u_int8_t*)MessageSelected_std.c_str(), iDataSize);
-        }
-        if( bContinue == false ) {
-            qDebug() << "Not able to write the message";
-        } else {
             qDebug() << "Message sent";
-            bContinue = read(ReadPlugin, &OutMess);
-        }
-
-        //read the response message
-        if( bContinue == false ) {
-            qDebug() << "Not able to read the response message";
-        } else if( OutMess.size() > 0 ) {
-            QString ReceivedMessage;
-            for( size_t i=0; i< OutMess.size(); i++) {
-                if( OutMess[i] != 0 ) {
-                    ReceivedMessage.append( QChar( OutMess[i] ) );
-                }
-            }
-            labelMess2Receiv->setText( ReceivedMessage );
         } else {
-            qDebug() << "Not able to read the response message";
+            qDebug() << "Not able to write the message";
         }
+    }
+}
+
+void MainWindow::GetDataFromPipe() {
+    bool bContinue = true;
+    std::vector<uint8_t>OutMess;
+
+    //Read data from the pipe
+    bContinue = readPipe(ReadPlugin, &OutMess);
+
+    //read the response message
+    if( bContinue == false ) {
+        qDebug() << "Not able to read the response message";
+    } else if( OutMess.size() > 0 ) {
+        QString ReceivedMessage;
+        for( size_t i=0; i< OutMess.size(); i++) {
+            if( OutMess[i] != 0 ) {
+                ReceivedMessage.append( QChar( OutMess[i] ) );
+            }
+        }
+        labelMess2Receiv->setText( ReceivedMessage );
+    } else {
+        qDebug() << "Not able to read the response message";
+    }
+}
+
+static void FromPipeComReadCallback( void* Ctx_Ptr) {
+    MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
+    if( mainWindow_Ptr != nullptr ) {
+        mainWindow_Ptr->GetDataFromPipe();
     }
 }
 

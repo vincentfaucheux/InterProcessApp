@@ -38,3 +38,7 @@ extern "C" void destroy_pipe_com_read(tPipeComRead* p) {
 extern "C" bool ReadData(tPipeComRead* t_Ptr, std::vector<uint8_t>* OutMess) {
     return t_Ptr->ReadData( OutMess );
 }
+
+extern "C" bool SetCbReceivedData(tPipeComRead* t_Ptr, tCbDataReceived Cb_Ptr, void* Ctx_Ptr) {
+    return t_Ptr->SetCbReceivedData( Cb_Ptr, Ctx_Ptr );
+}
