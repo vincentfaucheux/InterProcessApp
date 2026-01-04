@@ -3,16 +3,53 @@
 
 
 
-tPipeComWrite ::tPipeComWrite(std::string PipePath, bool* bAllOk_Ptr) {
-    *bAllOk_Ptr = true;
+tPipeComWrite ::tPipeComWrite(
+    std::string PipePath_in, 
+    int* iAllOk_Ptr,
+    tCbWriteCreated Cb_in_Ptr,
+    void* Ctx_in_Ptr
+) {
+    *iAllOk_Ptr = 0;
+    PipePath = PipePath_in;
+    CbWriteCreated = Cb_in_Ptr;
+    Ctx_Ptr = Ctx_in_Ptr;
     fd = open(PipePath.c_str(), O_WRONLY | O_NONBLOCK);
     if (fd < 0) {
-        perror("open");
-        *bAllOk_Ptr = false;
+        if(errno == ENXIO) {
+            std::cerr << "No reader connected to the pipe: " << PipePath << std::endl;
+            *iAllOk_Ptr = -1;
+            //Launch a thread to wait for the reader?
+            threadCreateWrite = std::thread( &tPipeComWrite::connectWriteThread, this);
+        } else {
+            perror("open");
+            *iAllOk_Ptr = -1;
+        }
+    } else {
+        bConnected = true;
+    }
+}
+
+void tPipeComWrite ::connectWriteThread() {
+    // Implementation for connecting write thread if needed
+    while((bConnected == false) && ( fd < 0 )) {
+        fd = open(PipePath.c_str(), O_WRONLY | O_NONBLOCK);
+        if( fd >= 0 ) {
+            bConnected = true;
+            //notify that the write pipe is created
+            if( CbWriteCreated != nullptr ) {
+                CbWriteCreated( Ctx_Ptr );
+            }
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 }
 
 tPipeComWrite ::~tPipeComWrite() {
+    if( threadCreateWrite.joinable())
+    {
+        threadCreateWrite.join();
+    }
     if (fd >= 0) {
         close(fd);
         fd = -1;

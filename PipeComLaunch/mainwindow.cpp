@@ -25,60 +25,11 @@ MainWindow::MainWindow() {
                     qDebug() << "Not able to open the shared library";
             }
             else {
-
-                // create the Window
-                auto* central = new QWidget;
-
-                // GroupBox choix des modules
-                QGroupBox *groupBoxDirections = new QGroupBox("Select direction");
-                // ComboBox choix des modules
-                comboDirections = new QComboBox();
-                comboDirections->addItem("APP -> SERV");
-                comboDirections->addItem("SERV -> APP");
-                // Layout GroupBox choix des modules
-                auto* groupDirectionsLayout = new QVBoxLayout();
-                groupDirectionsLayout->addWidget(comboDirections);
-                groupBoxDirections->setLayout(groupDirectionsLayout);
-
-                // GroupBox message to send
-                QGroupBox *groupBoxMess2Send= new QGroupBox("Message a envoyer");
-                //create textb box
-                tbMess2Send = new QLineEdit();
-                // Layout GroupBox message to send
-                auto* groupMess2SendLayout = new QVBoxLayout();
-                groupMess2SendLayout->addWidget(tbMess2Send);
-                groupBoxMess2Send->setLayout(groupMess2SendLayout);
-
-                // GroupBox message to receive
-                QGroupBox *groupBoxMess2Receiv= new QGroupBox("Message recu");
-                labelMess2Receiv = new QLabel();
-                // Layout GroupBox message to receive
-                auto* groupMess2ReceivLayout = new QVBoxLayout();
-                groupMess2ReceivLayout->addWidget(labelMess2Receiv);
-                groupBoxMess2Receiv->setLayout(groupMess2ReceivLayout);
-
-                auto* groupsLayout = new QVBoxLayout();
-                groupsLayout->addWidget(groupBoxDirections);
-                groupsLayout->addWidget(groupBoxMess2Send);
-                groupsLayout->addWidget(groupBoxMess2Receiv);
-
-                QPushButton *button = new QPushButton("Send message");
-
-                auto* mainLayout = new QVBoxLayout();
-                mainLayout->addLayout(groupsLayout);
-                mainLayout->addWidget(button);
-                central->setLayout(mainLayout);
-
-                setCentralWidget(central);
-
-                setWindowTitle("Pipe Communication App");
-                resize(400, 300);
-
-                //connect the button
-                QObject::connect(button, &QPushButton::clicked, [&]() {
-                    MainWindow::commandSend(comboDirections->currentText(),
-                                tbMess2Send->text());
-                });
+                if( iOpenWriteStatus < 0 ) {
+                    qDebug() << "Not able to open the write pipe";
+                } else {
+                    DisplayMainWindow();
+                }
             }
         }
     } else {
@@ -86,6 +37,62 @@ MainWindow::MainWindow() {
     }
 
  }
+
+ void MainWindow::DisplayMainWindow() {
+    // create the Window
+    auto* central = new QWidget;
+
+    // GroupBox choix des modules
+    QGroupBox *groupBoxDirections = new QGroupBox("Select direction");
+    // ComboBox choix des modules
+    comboDirections = new QComboBox();
+    comboDirections->addItem("APP -> SERV");
+    comboDirections->addItem("SERV -> APP");
+    // Layout GroupBox choix des modules
+    auto* groupDirectionsLayout = new QVBoxLayout();
+    groupDirectionsLayout->addWidget(comboDirections);
+    groupBoxDirections->setLayout(groupDirectionsLayout);
+
+    // GroupBox message to send
+    QGroupBox *groupBoxMess2Send= new QGroupBox("Message a envoyer");
+    //create textb box
+    tbMess2Send = new QLineEdit();
+    // Layout GroupBox message to send
+    auto* groupMess2SendLayout = new QVBoxLayout();
+    groupMess2SendLayout->addWidget(tbMess2Send);
+    groupBoxMess2Send->setLayout(groupMess2SendLayout);
+
+    // GroupBox message to receive
+    QGroupBox *groupBoxMess2Receiv= new QGroupBox("Message recu");
+    labelMess2Receiv = new QLabel();
+    // Layout GroupBox message to receive
+    auto* groupMess2ReceivLayout = new QVBoxLayout();
+    groupMess2ReceivLayout->addWidget(labelMess2Receiv);
+    groupBoxMess2Receiv->setLayout(groupMess2ReceivLayout);
+
+    auto* groupsLayout = new QVBoxLayout();
+    groupsLayout->addWidget(groupBoxDirections);
+    groupsLayout->addWidget(groupBoxMess2Send);
+    groupsLayout->addWidget(groupBoxMess2Receiv);
+
+    QPushButton *button = new QPushButton("Send message");
+
+    auto* mainLayout = new QVBoxLayout();
+    mainLayout->addLayout(groupsLayout);
+    mainLayout->addWidget(button);
+    central->setLayout(mainLayout);
+
+    setCentralWidget(central);
+
+    setWindowTitle("Pipe Communication App");
+    resize(400, 300);
+
+    //connect the button
+    QObject::connect(button, &QPushButton::clicked, [&]() {
+        MainWindow::commandSend(comboDirections->currentText(),
+                    tbMess2Send->text());
+    });
+}
 
 
 MainWindow::~MainWindow() {
@@ -137,7 +144,7 @@ bool MainWindow::openInterProcessSo(
 
         //load the class for writing
         dlerror();
-        createW = reinterpret_cast<tPipeComWrite*(*)(std::string)>(
+        createW = reinterpret_cast<tPipeComWrite*(*)(std::string, int*, tCbWriteCreated, void*)>(
             dlsym(handle, "create_pipe_com_write")
         );
         if(!createW) {
@@ -165,15 +172,6 @@ bool MainWindow::openInterProcessSo(
             bRet = false;
         }
 
-        //create the read plugin
-        if( bRet == true) {
-            ReadPlugin = createR( App2ServPipeName.c_str());
-            if( ReadPlugin == nullptr ) {
-                qDebug() << "Not able to create the pipe communication read interface";
-                bRet = false;
-            }
-        }
-
         //Load the function to write data
         dlerror();
         writePipe = reinterpret_cast<bool(*)(tPipeComWrite*, const u_int8_t*, int)>(
@@ -194,6 +192,15 @@ bool MainWindow::openInterProcessSo(
             bRet = false;
         }
 
+        //create the read plugin
+        if( bRet == true) {
+            ReadPlugin = createR( App2ServPipeName.c_str());
+            if( ReadPlugin == nullptr ) {
+                qDebug() << "Not able to create the pipe communication read interface";
+                bRet = false;
+            }
+        }
+
         //Set the callback for received data
         if( bRet == true) {
             tCbDataReceived cb = FromPipeComReadCallback;
@@ -206,7 +213,13 @@ bool MainWindow::openInterProcessSo(
 
         //create the write plugin
         if( bRet == true) {
-            WritePlugin = createW( App2ServPipeName.c_str());
+            iOpenWriteStatus = -2;
+            WritePlugin = createW( 
+                App2ServPipeName.c_str(), 
+                &iOpenWriteStatus, 
+                FromPipeComWriteCreateCallback, 
+                (void*)this
+            );
             if( WritePlugin == nullptr ) {
                 qDebug() << "Not able to create the pipe communication write interface";
                 bRet = false;
@@ -294,10 +307,28 @@ void MainWindow::GetDataFromPipe() {
     }
 }
 
+void MainWindow::AcknowledgeWriteOpenOk(MainWindow* MainWindow_Ptr) {
+    iOpenWriteStatus = 0;
+    //MainWindow_Ptr->DisplayMainWindow();
+    QMetaObject::invokeMethod(MainWindow_Ptr,
+    [this]() {
+        DisplayMainWindow();
+    },
+    Qt::QueuedConnection);
+
+}
+
 static void FromPipeComReadCallback( void* Ctx_Ptr) {
     MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
     if( mainWindow_Ptr != nullptr ) {
         mainWindow_Ptr->GetDataFromPipe();
+    }
+}
+
+static void FromPipeComWriteCreateCallback( void* Ctx_Ptr) {
+    MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
+    if( mainWindow_Ptr != nullptr ) {
+        mainWindow_Ptr->AcknowledgeWriteOpenOk(mainWindow_Ptr);
     }
 }
 

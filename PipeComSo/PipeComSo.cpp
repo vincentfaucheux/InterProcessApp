@@ -1,10 +1,14 @@
 
 #include "PipeComSo.h"
 
-extern "C" tPipeComWrite* create_pipe_com_write(std::string PipePath) {
-    bool bAllOk = true;
-    tPipeComWrite* PipeComWrite_Ptr = new tPipeComWrite( PipePath, &bAllOk);
-    if( bAllOk == false ) {
+extern "C" tPipeComWrite* create_pipe_com_write(
+        std::string PipePath, 
+        int* iAllOk_Ptr,
+        tCbWriteCreated Cb_Ptr,
+        void* Ctx_Ptr
+    ) {
+    tPipeComWrite* PipeComWrite_Ptr = new tPipeComWrite( PipePath, iAllOk_Ptr, Cb_Ptr, Ctx_Ptr);
+    if( *iAllOk_Ptr < -1 ) {
         delete PipeComWrite_Ptr;
         PipeComWrite_Ptr = nullptr;
     }
