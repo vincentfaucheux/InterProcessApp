@@ -29,7 +29,7 @@ private:
     tCbWriteCreated CbWriteCreated = nullptr;
     void* Ctx_Ptr = nullptr;
     std::string PipePath ="";
-    bool bConnected = false;
+    bool bRequestConnect = true;
     void connectWriteThread();
 };
 

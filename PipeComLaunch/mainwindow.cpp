@@ -25,8 +25,8 @@ MainWindow::MainWindow() {
                     qDebug() << "Not able to open the shared library";
             }
             else {
-                if( iOpenWriteStatus < 0 ) {
-                    qDebug() << "Not able to open the write pipe";
+                if(( iOpenRequestWriteStatus < 0) || (iOpenResponsWriteStatus < 0 )) {
+                    qDebug() << "Wait for write connection (request or response)";
                 } else {
                     DisplayMainWindow();
                 }
@@ -43,37 +43,63 @@ MainWindow::MainWindow() {
     auto* central = new QWidget;
 
     // GroupBox choix des modules
-    QGroupBox *groupBoxDirections = new QGroupBox("Select direction");
+    QGroupBox *gbCommands = new QGroupBox("Select command");
     // ComboBox choix des modules
-    comboDirections = new QComboBox();
-    comboDirections->addItem("APP -> SERV");
-    comboDirections->addItem("SERV -> APP");
+    cbCommands = new QComboBox();
+    cbCommands->addItem("1");
+    cbCommands->addItem("2");
     // Layout GroupBox choix des modules
-    auto* groupDirectionsLayout = new QVBoxLayout();
-    groupDirectionsLayout->addWidget(comboDirections);
-    groupBoxDirections->setLayout(groupDirectionsLayout);
-
+    auto* groupCommandsLayout = new QVBoxLayout();
+    groupCommandsLayout->addWidget(cbCommands);
+    gbCommands->setLayout(groupCommandsLayout);
     // GroupBox message to send
-    QGroupBox *groupBoxMess2Send= new QGroupBox("Message a envoyer");
+    QGroupBox *gbArg2Send= new QGroupBox("Request argument to send");
     //create textb box
-    tbMess2Send = new QLineEdit();
+    tbArg2Send = new QLineEdit();
     // Layout GroupBox message to send
-    auto* groupMess2SendLayout = new QVBoxLayout();
-    groupMess2SendLayout->addWidget(tbMess2Send);
-    groupBoxMess2Send->setLayout(groupMess2SendLayout);
+    auto* groupArg2SendLayout = new QVBoxLayout();
+    groupArg2SendLayout->addWidget(tbArg2Send);
+    gbArg2Send->setLayout(groupArg2SendLayout);
 
-    // GroupBox message to receive
-    QGroupBox *groupBoxMess2Receiv= new QGroupBox("Message recu");
-    labelMess2Receiv = new QLabel();
+    // GroupBox request to send
+    QGroupBox *gbRequest2Send= new QGroupBox("Request to send");
+    labelRequest2Send = new QLabel();
     // Layout GroupBox message to receive
-    auto* groupMess2ReceivLayout = new QVBoxLayout();
-    groupMess2ReceivLayout->addWidget(labelMess2Receiv);
-    groupBoxMess2Receiv->setLayout(groupMess2ReceivLayout);
+    auto* groupRequest2SentLayout = new QVBoxLayout();
+    groupRequest2SentLayout->addWidget(labelRequest2Send);
+    gbRequest2Send->setLayout(groupRequest2SentLayout);
+
+    // GroupBox request to receive
+    QGroupBox *gbRequest2Get= new QGroupBox("Request to get");
+    labelRequest2Get= new QLabel();
+    // Layout GroupBox message to receive
+    auto* groupRequest2GetLayout = new QVBoxLayout();
+    groupRequest2GetLayout->addWidget(labelRequest2Get);
+    gbRequest2Get->setLayout(groupRequest2GetLayout);
+
+    // GroupBox response to send
+    QGroupBox *gbRespons2Send= new QGroupBox("Response to send");
+    labelRespons2Send = new QLabel();
+    // Layout GroupBox message to receive
+    auto* groupRespons2SentLayout = new QVBoxLayout();
+    groupRespons2SentLayout->addWidget(labelRespons2Send);
+    gbRespons2Send->setLayout(groupRespons2SentLayout);
+
+    // GroupBox response to receive
+    QGroupBox *gbRespons2Get= new QGroupBox("Response to get");
+    labelRespons2Get= new QLabel();
+    // Layout GroupBox message to receive
+    auto* groupRespons2GetLayout = new QVBoxLayout();
+    groupRespons2GetLayout->addWidget(labelRespons2Get);
+    gbRespons2Get->setLayout(groupRespons2GetLayout);
 
     auto* groupsLayout = new QVBoxLayout();
-    groupsLayout->addWidget(groupBoxDirections);
-    groupsLayout->addWidget(groupBoxMess2Send);
-    groupsLayout->addWidget(groupBoxMess2Receiv);
+    groupsLayout->addWidget(gbCommands);
+    groupsLayout->addWidget(gbArg2Send);
+    groupsLayout->addWidget(gbRequest2Send);
+    groupsLayout->addWidget(gbRequest2Get);
+    groupsLayout->addWidget(gbRespons2Send);
+    groupsLayout->addWidget(gbRespons2Get);
 
     QPushButton *button = new QPushButton("Send message");
 
@@ -89,8 +115,8 @@ MainWindow::MainWindow() {
 
     //connect the button
     QObject::connect(button, &QPushButton::clicked, [&]() {
-        MainWindow::commandSend(comboDirections->currentText(),
-                    tbMess2Send->text());
+        MainWindow::commandSend(cbCommands->currentText(),
+                    tbArg2Send->text());
     });
 }
 
@@ -103,6 +129,13 @@ MainWindow::~MainWindow() {
     if( mainConfig_Ptr != nullptr ) {
         delete mainConfig_Ptr;
     }
+
+    if( Request_Ptr != nullptr ) {
+        delete[] Request_Ptr;
+    }   
+    if( Respons_Ptr != nullptr ) {
+        delete[] Respons_Ptr;
+    }   
 }
 
 bool MainWindow::openInterProcessSo( 
@@ -192,36 +225,70 @@ bool MainWindow::openInterProcessSo(
             bRet = false;
         }
 
-        //create the read plugin
+        //create the read plugin for the request
         if( bRet == true) {
-            ReadPlugin = createR( App2ServPipeName.c_str());
-            if( ReadPlugin == nullptr ) {
-                qDebug() << "Not able to create the pipe communication read interface";
+            ReadPipeRequest = createR( App2ServPipeName.c_str());
+            if( ReadPipeRequest == nullptr ) {
+                qDebug() << "Not able to create the pipe communication read interface for request";
                 bRet = false;
             }
         }
 
-        //Set the callback for received data
+        //create the read plugin for the response
         if( bRet == true) {
-            tCbDataReceived cb = FromPipeComReadCallback;
-            bool bCbOk = setCb( ReadPlugin, cb, (void*)this);
+            ReadPipeRespons = createR( Serv2AppPipeName.c_str());
+            if( ReadPipeRespons == nullptr ) {
+                qDebug() << "Not able to create the pipe communication read interface for response";
+                bRet = false;
+            }
+        }
+
+        //Set the callback for received data for the request
+        if( bRet == true) {
+            tCbDataReceived cb = FromPipeRequestReadCallback;
+            bool bCbOk = setCb( ReadPipeRequest, cb, (void*)this);
             if( bCbOk == false ) {
-                qDebug() << "Not able to set the callback for received data";
+                qDebug() << "Not able to set the callback for received data for the request";
                 bRet = false;
             }
         }
 
-        //create the write plugin
+        //Set the callback for received data for the response
         if( bRet == true) {
-            iOpenWriteStatus = -2;
-            WritePlugin = createW( 
+            tCbDataReceived cb = FromPipeResponsReadCallback;
+            bool bCbOk = setCb( ReadPipeRespons, cb, (void*)this);
+            if( bCbOk == false ) {
+                qDebug() << "Not able to set the callback for received data for the response";
+                bRet = false;
+            }
+        }
+
+        //create the write plugin for request
+        if( bRet == true) {
+            iOpenRequestWriteStatus = -2;
+            WritePipeRequest = createW( 
                 App2ServPipeName.c_str(), 
-                &iOpenWriteStatus, 
-                FromPipeComWriteCreateCallback, 
+                &iOpenRequestWriteStatus, 
+                FromPipeRequestWriteCreateCallback, 
                 (void*)this
             );
-            if( WritePlugin == nullptr ) {
-                qDebug() << "Not able to create the pipe communication write interface";
+            if( WritePipeRequest == nullptr ) {
+                qDebug() << "Not able to create the pipe communication write interface for request";
+                bRet = false;
+            }
+        }
+
+        //create the write plugin for response
+        if( bRet == true) {
+            iOpenResponsWriteStatus = -2;
+            WritePipeRespons = createW( 
+                Serv2AppPipeName.c_str(), 
+                &iOpenResponsWriteStatus, 
+                FromPipeResponsWriteCreateCallback, 
+                (void*)this
+            );
+            if( WritePipeRespons == nullptr ) {
+                qDebug() << "Not able to create the pipe communication write interface for response";
                 bRet = false;
             }
         }
@@ -238,97 +305,185 @@ bool MainWindow::openInterProcessSo(
 
 void MainWindow::closeInterProcessSo() {
     if (handle) {
-        if (ReadPlugin) {
-            destroyR(ReadPlugin);
+        if (ReadPipeRequest) {
+            destroyR(ReadPipeRequest);
         }
-        if (WritePlugin) {
-            destroyW(WritePlugin);
+        if (WritePipeRequest) {
+            destroyW(WritePipeRequest);
+        }
+        if (ReadPipeRespons) {
+            destroyR(ReadPipeRespons);
+        }
+        if (WritePipeRespons) {
+            destroyW(WritePipeRespons);
         }
         dlclose(handle);
     }
-    ReadPlugin = nullptr;
-    WritePlugin = nullptr;
+    ReadPipeRequest = nullptr;
+    WritePipeRequest = nullptr;
+    ReadPipeRespons = nullptr;
+    WritePipeRespons = nullptr;
     handle = nullptr;
 }
 
-void MainWindow::commandSend(const QString& DirectionSelected, const QString& MessageSelected) {
+void MainWindow::commandSend(const QString& CommandSelected, const QString& CmdArg) {
     //Check if plugins is valid
-    if(( WritePlugin == nullptr ) &&
-       ( ReadPlugin == nullptr )
+    if(( WritePipeRequest == nullptr ) &&
+       ( ReadPipeRequest == nullptr ) && 
+       ( WritePipeRespons == nullptr ) &&
+       ( ReadPipeRespons == nullptr )
     ) {
         //plugins not valid
         qDebug() << "plugins for pipe read or write are not valid";
     }else {
         bool bContinue = true;
         //plugins valid, execute command
-        qDebug() << "Pipe communication";
-        qDebug() << "module: " << DirectionSelected;
-        qDebug() << "state: " << MessageSelected;
-        std::string DirectionSelected_std = DirectionSelected.toStdString();
-        std::string MessageSelected_std = MessageSelected.toStdString();
+        qDebug() << "Pipe request";
+        qDebug() << "module: " << CommandSelected;
+        qDebug() << "state: " << CmdArg;
+        std::string CommandSelected_std = CommandSelected.toStdString();
+        std::string CmdArg_std = CmdArg.toStdString();
 
         //send the message
         int iDataSize = 0;
-        char* pData = (char*)MessageSelected_std.c_str();
+        char* pData = (char*)CmdArg_std.c_str();
         while( pData[iDataSize] != '\0' ) {
             iDataSize++;
         }
-        iDataSize++; //include the null termination
+        iDataSize +=3; //include the the command and the argument size
 
-        bContinue = writePipe(WritePlugin, (const u_int8_t*)MessageSelected_std.c_str(), iDataSize);
+        if( Request_Ptr != nullptr ) {
+            delete[] Request_Ptr;
+        } 
+        Request_Ptr = new u_int8_t[iDataSize];
+        Request_Ptr[0] = (u_int8_t)std::stoi(CommandSelected_std);
+        Request_Ptr[1] = (u_int8_t)((iDataSize -3) /256);
+        Request_Ptr[2] = (u_int8_t)((iDataSize -3) %256);
+        for( int j=0; j< (int)CmdArg_std.size(); j++) {
+            Request_Ptr[3 + j] = (u_int8_t)CmdArg_std[j];
+        }
+
+        bContinue = writePipe(WritePipeRequest, (const u_int8_t*)Request_Ptr, iDataSize);
         if( bContinue == true){
-            qDebug() << "Message sent";
+            qDebug() << "Request sent";
+            std::string label_std = "Command: " + CommandSelected_std + 
+            " size: " + std::to_string(iDataSize -3) +
+            " Argument: " + CmdArg_std;
+            labelRequest2Send->setText( QString::fromStdString(label_std) );
         } else {
             qDebug() << "Not able to write the message";
         }
     }
 }
 
-void MainWindow::GetDataFromPipe() {
+void MainWindow::GetDataFromPipeRequest() {
     bool bContinue = true;
     std::vector<uint8_t>OutMess;
 
     //Read data from the pipe
-    bContinue = readPipe(ReadPlugin, &OutMess);
+    bContinue = readPipe(ReadPipeRequest, &OutMess);
 
     //read the response message
     if( bContinue == false ) {
         qDebug() << "Not able to read the response message";
-    } else if( OutMess.size() > 0 ) {
-        QString ReceivedMessage;
-        for( size_t i=0; i< OutMess.size(); i++) {
-            if( OutMess[i] != 0 ) {
-                ReceivedMessage.append( QChar( OutMess[i] ) );
-            }
+    } else if( OutMess.size() > 3 ) {
+        //display the request message
+        std::string label_std = "Command: " + std::to_string(OutMess[0]) + 
+            " size: " + std::to_string((OutMess[1] * 256) + OutMess[2]) +
+            " Argument: " + std::string((char*)&OutMess[3], OutMess.size() - 3);
+        labelRequest2Get->setText( QString::fromStdString(label_std) );
+
+        //build the response message
+        OutMess[0] += 0x40; //response command
+        //send the response message
+        if( Respons_Ptr != nullptr ) {
+            delete[] Respons_Ptr;
+        } 
+        Respons_Ptr = new u_int8_t[(int)OutMess.size()];
+        for( int j=0; j< (int)OutMess.size(); j++) {
+            Respons_Ptr[j] = OutMess[j];
         }
-        labelMess2Receiv->setText( ReceivedMessage );
+        bContinue = writePipe(WritePipeRespons, (const u_int8_t*)Respons_Ptr, (int)OutMess.size());
+        if( bContinue == true){
+            qDebug() << "Response sent";
+            //display the response message
+            label_std = "Command: " + std::to_string(OutMess[0]) + 
+                " size: " + std::to_string(OutMess.size() - 3) +
+                " Argument: " + std::string((char*)&OutMess[3], OutMess.size() - 3);
+            labelRespons2Send->setText( QString::fromStdString(label_std) );
+        } else {
+            qDebug() << "Not able to write the response message";
+        }
     } else {
         qDebug() << "Not able to read the response message";
     }
 }
 
-void MainWindow::AcknowledgeWriteOpenOk(MainWindow* MainWindow_Ptr) {
-    iOpenWriteStatus = 0;
-    //MainWindow_Ptr->DisplayMainWindow();
-    QMetaObject::invokeMethod(MainWindow_Ptr,
-    [this]() {
-        DisplayMainWindow();
-    },
-    Qt::QueuedConnection);
-
+void MainWindow::AcknowledgePipeRequestWriteOpenOk(MainWindow* MainWindow_Ptr) {
+    iOpenRequestWriteStatus = 0;
+    if(( iOpenRequestWriteStatus == 0) && (iOpenResponsWriteStatus == 0 )) {
+        QMetaObject::invokeMethod(MainWindow_Ptr,
+            [this]() {
+                DisplayMainWindow();
+            },
+            Qt::QueuedConnection);
+    }
 }
-
-static void FromPipeComReadCallback( void* Ctx_Ptr) {
-    MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
-    if( mainWindow_Ptr != nullptr ) {
-        mainWindow_Ptr->GetDataFromPipe();
+void MainWindow::AcknowledgePipeResponsWriteOpenOk(MainWindow* MainWindow_Ptr) {
+    iOpenResponsWriteStatus = 0;
+    if(( iOpenRequestWriteStatus == 0) && (iOpenResponsWriteStatus == 0 )) {
+        QMetaObject::invokeMethod(MainWindow_Ptr,
+            [this]() {
+                DisplayMainWindow();
+            },
+            Qt::QueuedConnection);
     }
 }
 
-static void FromPipeComWriteCreateCallback( void* Ctx_Ptr) {
+void MainWindow::GetDataFromPipeRespons() {
+    bool bContinue = true;
+    std::vector<uint8_t>OutMess;
+
+    //Read data from the pipe
+    bContinue = readPipe(ReadPipeRespons, &OutMess);
+
+    //read the response message
+    if( bContinue == false ) {
+        qDebug() << "Not able to read the response message";
+    } else if( OutMess.size() > 3 ) {
+        //display the response message
+        std::string label_std = "Command: " + std::to_string(OutMess[0]) + 
+            " size: " + std::to_string(OutMess[1] * 256 + OutMess[2]) +
+            " Argument: " + std::string((char*)&OutMess[3], OutMess.size() - 3);
+        labelRespons2Get->setText( QString::fromStdString(label_std) );
+    } else {
+        qDebug() << "Not able to read the response message";
+    }
+}
+static void FromPipeRequestReadCallback( void* Ctx_Ptr) {
     MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
     if( mainWindow_Ptr != nullptr ) {
-        mainWindow_Ptr->AcknowledgeWriteOpenOk(mainWindow_Ptr);
+        mainWindow_Ptr->GetDataFromPipeRequest();
     }
 }
 
+static void FromPipeRequestWriteCreateCallback( void* Ctx_Ptr) {
+    MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
+    if( mainWindow_Ptr != nullptr ) {
+        mainWindow_Ptr->AcknowledgePipeRequestWriteOpenOk(mainWindow_Ptr);
+    }
+}
+
+static void FromPipeResponsReadCallback( void* Ctx_Ptr) {
+    MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
+    if( mainWindow_Ptr != nullptr ) {
+        mainWindow_Ptr->GetDataFromPipeRespons();
+    }
+}
+
+static void FromPipeResponsWriteCreateCallback( void* Ctx_Ptr) {
+    MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
+    if( mainWindow_Ptr != nullptr ) {
+        mainWindow_Ptr->AcknowledgePipeResponsWriteOpenOk(mainWindow_Ptr);
+    }
+}

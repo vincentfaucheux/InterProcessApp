@@ -12,8 +12,10 @@
 #include <string>
 #include "main_config.h"
 
-static void FromPipeComReadCallback( void* Ctx_Ptr);
-static void FromPipeComWriteCreateCallback( void* Ctx_Ptr);
+static void FromPipeRequestReadCallback( void* Ctx_Ptr);
+static void FromPipeResponsReadCallback( void* Ctx_Ptr);
+static void FromPipeRequestWriteCreateCallback( void* Ctx_Ptr);
+static void FromPipeResponsWriteCreateCallback( void* Ctx_Ptr);
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -21,19 +23,26 @@ class MainWindow : public QMainWindow {
 public:
     MainWindow();
     ~MainWindow();
-    void GetDataFromPipe();
-    void AcknowledgeWriteOpenOk(MainWindow* MainWindow_Ptr);
+    void GetDataFromPipeRequest();
+    void GetDataFromPipeRespons();
+    void AcknowledgePipeRequestWriteOpenOk(MainWindow* MainWindow_Ptr);
+    void AcknowledgePipeResponsWriteOpenOk(MainWindow* MainWindow_Ptr);
 
 private slots:
     //void onPluginChanged(int index);
 
 private:
-    QComboBox* comboDirections = nullptr;
-    QLineEdit *tbMess2Send= nullptr;
-    QLabel *labelMess2Receiv = nullptr;
+    QComboBox* cbCommands = nullptr;
+    QLineEdit *tbArg2Send= nullptr;
+    QLabel *labelRequest2Send = nullptr;
+    QLabel *labelRequest2Get = nullptr;
+    QLabel *labelRespons2Send = nullptr;
+    QLabel *labelRespons2Get = nullptr;
     void* handle = nullptr;
-    tPipeComWrite* WritePlugin = nullptr;
-    tPipeComRead* ReadPlugin = nullptr;
+    tPipeComWrite* WritePipeRequest = nullptr;
+    tPipeComRead* ReadPipeRequest = nullptr;
+    tPipeComWrite* WritePipeRespons = nullptr;
+    tPipeComRead* ReadPipeRespons = nullptr;
     tMainConfig* mainConfig_Ptr = nullptr;
     tPipeComWrite*(*createW)(std::string, int*, tCbWriteCreated, void*) = nullptr;
     tPipeComRead*(*createR)(std::string) = nullptr;
@@ -42,10 +51,13 @@ private:
     void(*destroyW)(tPipeComWrite*) = nullptr;
     bool(*writePipe)(tPipeComWrite*, const u_int8_t*, int) = nullptr;
     bool(*readPipe)(tPipeComRead*, std::vector<uint8_t>*) = nullptr;
-    int iOpenWriteStatus = -2;
+    int iOpenRequestWriteStatus = -2;
+    int iOpenResponsWriteStatus = -2;
+    u_int8_t* Request_Ptr = nullptr;
+    u_int8_t* Respons_Ptr = nullptr;
 
     //void commandZigbeeObsolete(const QString& path);
-    void commandSend(const QString& DirectionSelected, const QString& MessageSelected);
+    void commandSend(const QString& CommandSelected, const QString& CmdArg);
     void closeInterProcessSo();
     bool openInterProcessSo( 
         std::string InterProcessLib, 

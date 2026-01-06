@@ -25,16 +25,16 @@ tPipeComWrite ::tPipeComWrite(
             *iAllOk_Ptr = -1;
         }
     } else {
-        bConnected = true;
+        bRequestConnect = false;
     }
 }
 
 void tPipeComWrite ::connectWriteThread() {
     // Implementation for connecting write thread if needed
-    while((bConnected == false) && ( fd < 0 )) {
+    while((bRequestConnect == true) && ( fd < 0 )) {
         fd = open(PipePath.c_str(), O_WRONLY | O_NONBLOCK);
         if( fd >= 0 ) {
-            bConnected = true;
+            bRequestConnect = false;
             //notify that the write pipe is created
             if( CbWriteCreated != nullptr ) {
                 CbWriteCreated( Ctx_Ptr );
