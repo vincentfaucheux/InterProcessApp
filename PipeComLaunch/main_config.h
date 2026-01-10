@@ -8,7 +8,9 @@ class tConfigData{
 public:
     tConfigData();
     ~tConfigData();
-    std::string InterProcessAppLib;
+    std::string InterProcessPipesLib;
+    std::string InterProcessClientLib;
+    std::string InterProcessServerLib;
     std::string App2ServPipeName;
     std::string Serv2AppPipeName;
 };

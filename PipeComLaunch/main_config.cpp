@@ -1,7 +1,11 @@
 #include "main_config.h"
 
 tConfigData::tConfigData(){
-    InterProcessAppLib = "";
+    InterProcessPipesLib = "";
+    InterProcessClientLib = "";
+    InterProcessServerLib = "";
+    App2ServPipeName = "";
+    Serv2AppPipeName = "";
 }
 
 tConfigData::~tConfigData(){
@@ -26,13 +30,31 @@ bool tMainConfig::LoadConfig(){
         //data pointer is valid, load yaml file
         try {
             YAML::Node YamlConfig = YAML::LoadFile( "configuration.yaml");
-            
-            //read interprocess app lib
-            if( YamlConfig["interprocess_app_lib"] ) {
-                ConfigData_Ptr->InterProcessAppLib = YamlConfig["interprocess_app_lib"].as<std::string>();
-                std::cout << "interprocess_app_lib:" << ConfigData_Ptr->InterProcessAppLib << std::endl;
+
+            //read interprocess pipes lib
+            if( YamlConfig["interprocess_pipes_lib"] ) {
+                ConfigData_Ptr->InterProcessPipesLib = YamlConfig["interprocess_pipes_lib"].as<std::string>();
+                std::cout << "interprocess_pipes_lib:" << ConfigData_Ptr->InterProcessPipesLib << std::endl;
             } else {
-                std::cout << "interprocess_app_lib not found in configuration.yaml" << std::endl;
+                std::cout << "interprocess_pipe_lib not found in configuration.yaml" << std::endl;
+                bRet = false;
+            }
+
+            //read interprocess client lib
+            if( YamlConfig["interprocess_client_lib"] ) {
+                ConfigData_Ptr->InterProcessClientLib = YamlConfig["interprocess_client_lib"].as<std::string>();
+                std::cout << "interprocess_client_lib:" << ConfigData_Ptr->InterProcessClientLib << std::endl;
+            } else {
+                std::cout << "interprocess_client_lib not found in configuration.yaml" << std::endl;
+                bRet = false;
+            }
+
+            //read interprocess server lib
+            if( YamlConfig["interprocess_server_lib"] ) {
+                ConfigData_Ptr->InterProcessServerLib = YamlConfig["interprocess_server_lib"].as<std::string>();
+                std::cout << "interprocess_server_lib:" << ConfigData_Ptr->InterProcessServerLib << std::endl;
+            } else {
+                std::cout << "interprocess_server_lib not found in configuration.yaml" << std::endl;
                 bRet = false;
             }
 

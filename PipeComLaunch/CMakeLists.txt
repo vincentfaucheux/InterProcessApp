@@ -13,6 +13,10 @@ target_include_directories(PipeComLaunch
     PRIVATE ${CMAKE_SOURCE_DIR}/PipeComSo
 )
 
+target_include_directories(PipeComLaunch
+    PRIVATE ${CMAKE_SOURCE_DIR}/EndPointComSo
+)
+
 target_link_libraries(PipeComLaunch
     Qt6::Widgets
     dl

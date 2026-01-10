@@ -1,4 +1,4 @@
-find_package(yaml-cpp REQUIRED)
+cmake_minimum_required(VERSION 3.10)
 
 # Les headers des plugins sont accessibles à tous
 add_library(PipeCom INTERFACE)
@@ -17,10 +17,6 @@ add_library(PipeComSo SHARED
     PipeComSo.h
     PipeComReadSo.h
     PipeComWriteSo.h
-)
-
-target_link_libraries(PipeComSo
-    PRIVATE ${yaml-cpp}
 )
 
 target_include_directories(PipeComSo

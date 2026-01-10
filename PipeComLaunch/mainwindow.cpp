@@ -10,12 +10,16 @@ MainWindow::MainWindow() {
         bool bConfigOk = mainConfig_Ptr->LoadConfig();
         //if path exists, continue
         if(( bConfigOk == true) && 
-            ( mainConfig_Ptr->ConfigData_Ptr->InterProcessAppLib != "" ) &&
+            ( mainConfig_Ptr->ConfigData_Ptr->InterProcessPipesLib != "" ) &&
+            ( mainConfig_Ptr->ConfigData_Ptr->InterProcessClientLib != "" ) &&
+            ( mainConfig_Ptr->ConfigData_Ptr->InterProcessServerLib != "" ) &&
             ( mainConfig_Ptr->ConfigData_Ptr->App2ServPipeName != "" ) &&
             ( mainConfig_Ptr->ConfigData_Ptr->Serv2AppPipeName != "" )) {
             //try to open the shared library
             bool bInterProcessSoOk = openInterProcessSo( 
-                mainConfig_Ptr->ConfigData_Ptr->InterProcessAppLib,
+                mainConfig_Ptr->ConfigData_Ptr->InterProcessPipesLib,
+                mainConfig_Ptr->ConfigData_Ptr->InterProcessClientLib,
+                mainConfig_Ptr->ConfigData_Ptr->InterProcessServerLib,
                 mainConfig_Ptr->ConfigData_Ptr->App2ServPipeName,
                 mainConfig_Ptr->ConfigData_Ptr->Serv2AppPipeName
             );
@@ -25,7 +29,7 @@ MainWindow::MainWindow() {
                     qDebug() << "Not able to open the shared library";
             }
             else {
-                if(( iOpenRequestWriteStatus < 0) || (iOpenResponsWriteStatus < 0 )) {
+                if(( iOpenClientWriteStatus < 0) || (iOpenServerWriteStatus < 0 )) {
                     qDebug() << "Wait for write connection (request or response)";
                 } else {
                     DisplayMainWindow();
@@ -139,163 +143,123 @@ MainWindow::~MainWindow() {
 }
 
 bool MainWindow::openInterProcessSo( 
-    std::string InterProcessLib, 
+    std::string InterProcessPipeLib, 
+    std::string InterProcessClientLib, 
+    std::string InterProcessServerLib, 
     std::string App2ServPipeName, 
     std::string Serv2AppPipeName 
 ) {
     //init local variables
     bool bRet = true;
 
-    //open the shared library
-    handle = dlopen( InterProcessLib.c_str(), RTLD_LAZY);
-    if (!handle) {
+    //open the shared library for client communication
+    handleClient = dlopen( InterProcessClientLib.c_str(), RTLD_LAZY);
+    if (!handleClient) {
         qDebug() << dlerror();
         bRet = false;
     }
 
-    //Load the required functions
     if( bRet == true) {
-        //load the class for reading
+        //load the class for client communication
         dlerror();
-        createR = reinterpret_cast<tPipeComRead*(*)(std::string)>(
-            dlsym(handle, "create_pipe_com_read")
+        EndPointCreate = reinterpret_cast<tEndPointCom*(*)(std::string, std::string, std::string, int*, tCbEndPointWriteCreated, void*)>(
+            dlsym(handleClient, "create_client_com")
         );
-        if(!createR) {
+        if(!EndPointCreate) {
             qDebug() << dlerror();
             bRet = false;
         }
 
-        //Set the callback for received data
+        //load the destroyer for the client
         dlerror();
-        setCb = reinterpret_cast<bool(*)(tPipeComRead*, tCbDataReceived, void*)>(
-            dlsym(handle, "SetCbReceivedData")
+        EndPointDestroy = reinterpret_cast<void(*)(tEndPointCom*)>(
+            dlsym(handleClient, "destroy_client_com")
         );
-        if(!setCb) {
+        if(!EndPointDestroy) {
             qDebug() << dlerror();
             bRet = false;
         }
 
-        //load the class for writing
+        //Set the callback for client communication
         dlerror();
-        createW = reinterpret_cast<tPipeComWrite*(*)(std::string, int*, tCbWriteCreated, void*)>(
-            dlsym(handle, "create_pipe_com_write")
+        EndPointSetReadCb = reinterpret_cast<bool(*)(tEndPointCom*, tCbEndPointDataReceived, void*)>(
+            dlsym(handleClient, "SetCbClientReadData")
         );
-        if(!createW) {
+        if(!EndPointSetReadCb) {
             qDebug() << dlerror();
             bRet = false;
         }
 
-        //load the destroyer for writing
+        //Load the function to write to the client
         dlerror();
-        destroyW = reinterpret_cast<void(*)(tPipeComWrite*)>(
-            dlsym(handle, "destroy_pipe_com_write")
+        EndPointWrite = reinterpret_cast<bool(*)(tEndPointCom*, const u_int8_t*, int)>(
+            dlsym(handleClient, "WriteClientData")
         );
-        if(!destroyW) {
+        if(!EndPointWrite) {
             qDebug() << dlerror();
             bRet = false;
         }
 
-        //load the destroyer for reading
+        //Load the function to read to the client
         dlerror();
-        destroyR = reinterpret_cast<void(*)(tPipeComRead*)>(
-            dlsym(handle, "destroy_pipe_com_read")
+        EndPointRead = reinterpret_cast<bool(*)(tEndPointCom*, std::vector<uint8_t>*)>(
+            dlsym(handleClient, "ReadClientData")
         );
-        if(!destroyR) {
+        if(!EndPointRead) {
             qDebug() << dlerror();
             bRet = false;
         }
 
-        //Load the function to write data
-        dlerror();
-        writePipe = reinterpret_cast<bool(*)(tPipeComWrite*, const u_int8_t*, int)>(
-            dlsym(handle, "WriteData")
-        );
-        if(!writePipe) {
-            qDebug() << dlerror();
-            bRet = false;
-        }
-
-        //Load the function to read data
-        dlerror();
-        readPipe = reinterpret_cast<bool(*)(tPipeComRead*, std::vector<uint8_t>*)>(
-            dlsym(handle, "ReadData")
-        );
-        if(!readPipe) {
-            qDebug() << dlerror();
-            bRet = false;
-        }
-
-        //create the read plugin for the request
+        //create the client communication
         if( bRet == true) {
-            ReadPipeRequest = createR( App2ServPipeName.c_str());
-            if( ReadPipeRequest == nullptr ) {
-                qDebug() << "Not able to create the pipe communication read interface for request";
-                bRet = false;
-            }
-        }
-
-        //create the read plugin for the response
-        if( bRet == true) {
-            ReadPipeRespons = createR( Serv2AppPipeName.c_str());
-            if( ReadPipeRespons == nullptr ) {
-                qDebug() << "Not able to create the pipe communication read interface for response";
-                bRet = false;
-            }
-        }
-
-        //Set the callback for received data for the request
-        if( bRet == true) {
-            tCbDataReceived cb = FromPipeRequestReadCallback;
-            bool bCbOk = setCb( ReadPipeRequest, cb, (void*)this);
-            if( bCbOk == false ) {
-                qDebug() << "Not able to set the callback for received data for the request";
+            iOpenClientWriteStatus = -2;
+            ClientCom = EndPointCreate( 
+                InterProcessPipeLib.c_str(), 
+                App2ServPipeName.c_str(), 
+                Serv2AppPipeName.c_str(), 
+                &iOpenClientWriteStatus, 
+                FromClientWriteCreateCallback, 
+                this);
+            if( ClientCom == nullptr ) {
+                qDebug() << "Not able to create the client communication";
                 bRet = false;
             }
         }
 
         //Set the callback for received data for the response
         if( bRet == true) {
-            tCbDataReceived cb = FromPipeResponsReadCallback;
-            bool bCbOk = setCb( ReadPipeRespons, cb, (void*)this);
+            tCbEndPointDataReceived cb = FromClientReadCallback;
+            bool bCbOk = EndPointSetReadCb( ClientCom, cb, (void*)this);
             if( bCbOk == false ) {
                 qDebug() << "Not able to set the callback for received data for the response";
                 bRet = false;
             }
         }
 
-        //create the write plugin for request
+        //create the server communication
         if( bRet == true) {
-            iOpenRequestWriteStatus = -2;
-            WritePipeRequest = createW( 
-                App2ServPipeName.c_str(), 
-                &iOpenRequestWriteStatus, 
-                FromPipeRequestWriteCreateCallback, 
-                (void*)this
-            );
-            if( WritePipeRequest == nullptr ) {
-                qDebug() << "Not able to create the pipe communication write interface for request";
-                bRet = false;
-            }
-        }
-
-        //create the write plugin for response
-        if( bRet == true) {
-            iOpenResponsWriteStatus = -2;
-            WritePipeRespons = createW( 
+            iOpenServerWriteStatus = -2;
+            ServerCom = EndPointCreate( 
+                InterProcessPipeLib.c_str(), 
                 Serv2AppPipeName.c_str(), 
-                &iOpenResponsWriteStatus, 
-                FromPipeResponsWriteCreateCallback, 
-                (void*)this
-            );
-            if( WritePipeRespons == nullptr ) {
-                qDebug() << "Not able to create the pipe communication write interface for response";
+                App2ServPipeName.c_str(), 
+                &iOpenServerWriteStatus, 
+                FromServerWriteCreateCallback, 
+                this);
+            if( ServerCom == nullptr ) {
+                qDebug() << "Not able to create the server communication";
                 bRet = false;
             }
         }
 
-        if( bRet == false ) {
-            //clean up
-            closeInterProcessSo();
+        //Set the callback for received data for the request
+        if( bRet == true) {
+            tCbEndPointDataReceived cb = FromServerReadCallback;
+            bool bCbOk = EndPointSetReadCb( ServerCom, cb, (void*)this);
+            if( bCbOk == false ) {
+                qDebug() << "Not able to set the callback for received data for the request";
+                bRet = false;
+            }
         }
 
     }
@@ -304,34 +268,24 @@ bool MainWindow::openInterProcessSo(
 }
 
 void MainWindow::closeInterProcessSo() {
-    if (handle) {
-        if (ReadPipeRequest) {
-            destroyR(ReadPipeRequest);
+    if( handleClient ) {
+        if( EndPointDestroy && ClientCom ) {
+            EndPointDestroy( ClientCom );
         }
-        if (WritePipeRequest) {
-            destroyW(WritePipeRequest);
+        if( EndPointDestroy && ServerCom ) {
+            EndPointDestroy( ServerCom );
         }
-        if (ReadPipeRespons) {
-            destroyR(ReadPipeRespons);
-        }
-        if (WritePipeRespons) {
-            destroyW(WritePipeRespons);
-        }
-        dlclose(handle);
+        ClientCom = nullptr;
+        ServerCom = nullptr;
+        dlclose(handleClient);
     }
-    ReadPipeRequest = nullptr;
-    WritePipeRequest = nullptr;
-    ReadPipeRespons = nullptr;
-    WritePipeRespons = nullptr;
-    handle = nullptr;
+    handleClient = nullptr;
 }
 
 void MainWindow::commandSend(const QString& CommandSelected, const QString& CmdArg) {
     //Check if plugins is valid
-    if(( WritePipeRequest == nullptr ) &&
-       ( ReadPipeRequest == nullptr ) && 
-       ( WritePipeRespons == nullptr ) &&
-       ( ReadPipeRespons == nullptr )
+    if(( ClientCom== nullptr ) ||
+       ( ServerCom == nullptr ) 
     ) {
         //plugins not valid
         qDebug() << "plugins for pipe read or write are not valid";
@@ -363,7 +317,7 @@ void MainWindow::commandSend(const QString& CommandSelected, const QString& CmdA
             Request_Ptr[3 + j] = (u_int8_t)CmdArg_std[j];
         }
 
-        bContinue = writePipe(WritePipeRequest, (const u_int8_t*)Request_Ptr, iDataSize);
+        bContinue = EndPointWrite(ClientCom, (const u_int8_t*)Request_Ptr, iDataSize);
         if( bContinue == true){
             qDebug() << "Request sent";
             std::string label_std = "Command: " + CommandSelected_std + 
@@ -376,12 +330,33 @@ void MainWindow::commandSend(const QString& CommandSelected, const QString& CmdA
     }
 }
 
-void MainWindow::GetDataFromPipeRequest() {
+void MainWindow::GetDataFromClient() {
     bool bContinue = true;
     std::vector<uint8_t>OutMess;
 
     //Read data from the pipe
-    bContinue = readPipe(ReadPipeRequest, &OutMess);
+    bContinue = EndPointRead(ClientCom, &OutMess);
+
+    //read the response message
+    if( bContinue == false ) {
+        qDebug() << "Not able to read the response message";
+    } else if( OutMess.size() > 3 ) {
+        //display the response message
+        std::string label_std = "Command: " + std::to_string(OutMess[0]) + 
+            " size: " + std::to_string(OutMess[1] * 256 + OutMess[2]) +
+            " Argument: " + std::string((char*)&OutMess[3], OutMess.size() - 3);
+        labelRespons2Get->setText( QString::fromStdString(label_std) );
+    } else {
+        qDebug() << "Not able to read the response message";
+    }
+}
+
+void MainWindow::GetDataFromServer() {
+    bool bContinue = true;
+    std::vector<uint8_t>OutMess;
+
+    //Read data from the pipe
+    bContinue = EndPointRead(ServerCom, &OutMess);
 
     //read the response message
     if( bContinue == false ) {
@@ -403,7 +378,7 @@ void MainWindow::GetDataFromPipeRequest() {
         for( int j=0; j< (int)OutMess.size(); j++) {
             Respons_Ptr[j] = OutMess[j];
         }
-        bContinue = writePipe(WritePipeRespons, (const u_int8_t*)Respons_Ptr, (int)OutMess.size());
+        bContinue = EndPointWrite(ServerCom, (const u_int8_t*)Respons_Ptr, (int)OutMess.size());
         if( bContinue == true){
             qDebug() << "Response sent";
             //display the response message
@@ -419,9 +394,9 @@ void MainWindow::GetDataFromPipeRequest() {
     }
 }
 
-void MainWindow::AcknowledgePipeRequestWriteOpenOk(MainWindow* MainWindow_Ptr) {
-    iOpenRequestWriteStatus = 0;
-    if(( iOpenRequestWriteStatus == 0) && (iOpenResponsWriteStatus == 0 )) {
+void MainWindow::AcknowledgeClientWriteOpenOk(MainWindow* MainWindow_Ptr) {
+    iOpenClientWriteStatus = 0;
+    if(( iOpenClientWriteStatus >= 0) && (iOpenServerWriteStatus >= 0 )) {
         QMetaObject::invokeMethod(MainWindow_Ptr,
             [this]() {
                 DisplayMainWindow();
@@ -429,9 +404,9 @@ void MainWindow::AcknowledgePipeRequestWriteOpenOk(MainWindow* MainWindow_Ptr) {
             Qt::QueuedConnection);
     }
 }
-void MainWindow::AcknowledgePipeResponsWriteOpenOk(MainWindow* MainWindow_Ptr) {
-    iOpenResponsWriteStatus = 0;
-    if(( iOpenRequestWriteStatus == 0) && (iOpenResponsWriteStatus == 0 )) {
+void MainWindow::AcknowledgeServerWriteOpenOk(MainWindow* MainWindow_Ptr) {
+    iOpenServerWriteStatus = 0;
+    if(( iOpenClientWriteStatus >= 0) && (iOpenServerWriteStatus >= 0 )) {
         QMetaObject::invokeMethod(MainWindow_Ptr,
             [this]() {
                 DisplayMainWindow();
@@ -440,50 +415,30 @@ void MainWindow::AcknowledgePipeResponsWriteOpenOk(MainWindow* MainWindow_Ptr) {
     }
 }
 
-void MainWindow::GetDataFromPipeRespons() {
-    bool bContinue = true;
-    std::vector<uint8_t>OutMess;
-
-    //Read data from the pipe
-    bContinue = readPipe(ReadPipeRespons, &OutMess);
-
-    //read the response message
-    if( bContinue == false ) {
-        qDebug() << "Not able to read the response message";
-    } else if( OutMess.size() > 3 ) {
-        //display the response message
-        std::string label_std = "Command: " + std::to_string(OutMess[0]) + 
-            " size: " + std::to_string(OutMess[1] * 256 + OutMess[2]) +
-            " Argument: " + std::string((char*)&OutMess[3], OutMess.size() - 3);
-        labelRespons2Get->setText( QString::fromStdString(label_std) );
-    } else {
-        qDebug() << "Not able to read the response message";
-    }
-}
-static void FromPipeRequestReadCallback( void* Ctx_Ptr) {
+static void FromClientWriteCreateCallback( void* Ctx_Ptr) {
     MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
     if( mainWindow_Ptr != nullptr ) {
-        mainWindow_Ptr->GetDataFromPipeRequest();
+        mainWindow_Ptr->AcknowledgeClientWriteOpenOk(mainWindow_Ptr);
     }
 }
 
-static void FromPipeRequestWriteCreateCallback( void* Ctx_Ptr) {
+static void FromClientReadCallback( void* Ctx_Ptr) {
     MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
     if( mainWindow_Ptr != nullptr ) {
-        mainWindow_Ptr->AcknowledgePipeRequestWriteOpenOk(mainWindow_Ptr);
+        mainWindow_Ptr->GetDataFromClient();
     }
 }
 
-static void FromPipeResponsReadCallback( void* Ctx_Ptr) {
+static void FromServerWriteCreateCallback( void* Ctx_Ptr) {
     MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
     if( mainWindow_Ptr != nullptr ) {
-        mainWindow_Ptr->GetDataFromPipeRespons();
+        mainWindow_Ptr->AcknowledgeServerWriteOpenOk(mainWindow_Ptr);
     }
 }
 
-static void FromPipeResponsWriteCreateCallback( void* Ctx_Ptr) {
+static void FromServerReadCallback( void* Ctx_Ptr) {
     MainWindow* mainWindow_Ptr = reinterpret_cast<MainWindow*>( Ctx_Ptr);
     if( mainWindow_Ptr != nullptr ) {
-        mainWindow_Ptr->AcknowledgePipeResponsWriteOpenOk(mainWindow_Ptr);
+        mainWindow_Ptr->GetDataFromServer();
     }
 }

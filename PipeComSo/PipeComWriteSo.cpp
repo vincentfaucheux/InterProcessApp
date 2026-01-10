@@ -9,7 +9,8 @@ tPipeComWrite ::tPipeComWrite(
     tCbWriteCreated Cb_in_Ptr,
     void* Ctx_in_Ptr
 ) {
-    *iAllOk_Ptr = 0;
+    *iAllOk_Ptr = -2;
+    bRequestConnect = false;
     PipePath = PipePath_in;
     CbWriteCreated = Cb_in_Ptr;
     Ctx_Ptr = Ctx_in_Ptr;
@@ -17,15 +18,15 @@ tPipeComWrite ::tPipeComWrite(
     if (fd < 0) {
         if(errno == ENXIO) {
             std::cerr << "No reader connected to the pipe: " << PipePath << std::endl;
+            bRequestConnect = true;
             *iAllOk_Ptr = -1;
             //Launch a thread to wait for the reader?
             threadCreateWrite = std::thread( &tPipeComWrite::connectWriteThread, this);
         } else {
             perror("open");
-            *iAllOk_Ptr = -1;
         }
     } else {
-        bRequestConnect = false;
+        *iAllOk_Ptr = 0;
     }
 }
 
