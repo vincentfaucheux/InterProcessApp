@@ -1,3 +1,8 @@
 {
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+    // 🔹 C++ : includes, defines, etc.
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    // 🔹 Python : où trouver les modules (dont pipecom.so)
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/build/debug/python"
+    ]   
 }
