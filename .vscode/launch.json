@@ -57,8 +57,15 @@
                 "ignoreFailures": true
             }
         ]
-    }
+    },
 
+    {
+        "name": "Python: fichier courant",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${file}",
+        "console": "integratedTerminal"
+    }
   ]
 }
 

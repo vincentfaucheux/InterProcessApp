@@ -1,0 +1,5 @@
+interprocess_pipes_lib: "/home/vincent/InterProcess/PipeComApp/build/release/PipeComSo/libPipeComSo.so"
+interprocess_client_lib: "/home/vincent/InterProcess/PipeComApp/build/release/python"
+interprocess_server_lib: "/home/vincent/InterProcess/PipeComApp/build/release/python"
+app2serv_pipe_name: "/home/vincent/InterProcess/Pipes/Client2Serv"
+serv2app_pipe_name: "/home/vincent/InterProcess/Pipes/Serv2Client"
