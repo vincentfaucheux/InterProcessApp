@@ -33,18 +33,23 @@ from pipecom import EndPointCom
 bWriteCreated = False
 bDataReceived = False
 bQuit = False
+buf_reply = bytearray()
+reply_length = 0
 
 #
 # Fonction d'envoi de requête, réception réponse (dans le thread)
 #
 def send_request( ep, cmd, str_data):
     global bDataReceived
+    global buf_reply
     # les données à envoyer
     data_bytes = str_data.encode('utf-8')
     # longueur des données
     length = len(data_bytes)
     # construire le buffer à envoyer
     buffer = struct.pack(">B H", cmd, length) + data_bytes
+    # response buffer vide au départ
+    buf_reply = bytearray()
     #
     # Envoyer des données
     #
@@ -80,11 +85,23 @@ def on_pipe_ready():
 def on_data():
     global bDataReceived
     global ep
-    print("Data reçue")
-    bDataReceived = True
+    global buf_reply
+    global reply_length
     data = ep.read()
-    print(f"Data: {data}")
+    if( len(buf_reply) < 3 ):
+        buf_reply += data
+        if( len(buf_reply) >= 3 ):
+            reply_length = buf_reply[1] << 8 | buf_reply[2]
+            if( len(buf_reply) - 3 >= reply_length ):
+                # tout reçu
+                bDataReceived = True
+    else:
+        buf_reply += data
+        if( len(buf_reply) - 3 >= reply_length ):
+            # tout reçu
+            bDataReceived = True
 
+            
 #
 # Créer l'EndPointCom
 #
@@ -126,7 +143,8 @@ if( ep != None ):
             thread = send_request_thread(ep, 1, str_input)
             # attendre la fin du thread avant de continuer
             thread.join()
-
+            print("Data reçue")
+            print(f"Data: {buf_reply}")
     #
     # Tout fermer   
     #
