@@ -59,7 +59,9 @@ def send_request( ep, cmd, str_data):
     # Attendre la réception des données
     #
     while not bDataReceived:
-        ep.pool_data_received()
+        if( ep.is_data_received() == True ):
+            bDataReceived = True
+            on_data()
         time.sleep(0.01)
     bDataReceived = False
 
@@ -74,10 +76,10 @@ def send_request_thread(ep, cmd, str_data):
 #
 # Callback pipe write created
 #
-def on_pipe_ready():
-    global bWriteCreated
-    print("WRITE pipe créé")
-    bWriteCreated = True
+# def on_pipe_ready():
+#     global bWriteCreated
+#     print("WRITE pipe créé")
+#     bWriteCreated = True
 
 #
 # Callback data received
@@ -114,22 +116,24 @@ if (("app2serv_pipe_name" not in config) or
 ep = EndPointCom(
     config["interprocess_pipes_lib"],
     config["app2serv_pipe_name"],
-    config["app2serv_pipe_name"],
-    on_pipe_ready
+    config["app2serv_pipe_name"]
 )
 
 if( ep != None ):
     #
     # Attendre la création du pipe write
     #
+    #ep.set_open_write_callback(on_pipe_ready)
     while not bWriteCreated:
-        ep.pool_write_created()
+        if(ep.is_write_created() == True):
+            bWriteCreated = True
+            print("WRITE pipe créé")
         time.sleep(0.01)
 
     #
     # Définir le callback data received
     #
-    ep.set_callback(on_data)
+    #ep.set_callback(on_data)
 
     #
     # boucle pour envoi de données
